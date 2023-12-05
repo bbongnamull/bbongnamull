@@ -1,4 +1,18 @@
 import os
+import json
+
+TODO_FILE = "todo_list.json"
+2
+def save_todo_list(todo_list):
+    with open(TODO_FILE, 'w') as file:
+        json.dump(todo_list, file)
+def load_todo_list():
+    if os.path.exists(TODO_FILE):
+        with open(TODO_FILE, 'r') as file:
+            return json.load(file)
+    else:
+        return []
+
 
 def display_menu():
     print("1. 할일 추가")
@@ -41,7 +55,7 @@ def delete_todo(todo_list):
         print("잘못된 번호를 입력하셨습니다.")
 
 def main():
-    todo_list = []
+    todo_list = load_todo_list()
 
     while True:
         display_menu()
@@ -56,6 +70,7 @@ def main():
         elif choice == '4':
             delete_todo(todo_list)
         elif choice == '5':
+            save_todo_list(todo_list)  # Save the to-do list before exiting
             print("프로그램을 종료합니다.")
             break
         else:
