@@ -5,6 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 TODO_FILE = "todo_list.json"
+LAST_RUN_DATE_FILE = "last_run_date.txt"
 
 def get_email_credentials():
     email_address = input("Enter your email address: ")
@@ -23,6 +24,17 @@ def load_todo_list():
             return json.load(file)
     else:
         return []
+
+def save_last_run_date(current_date):
+    with open(LAST_RUN_DATE_FILE, 'w') as file:
+        file.write(current_date)
+
+def load_last_run_date():
+    if os.path.exists(LAST_RUN_DATE_FILE):
+        with open(LAST_RUN_DATE_FILE, 'r') as file:
+            return file.read().strip()
+    else:
+        return None
 
 def send_email(subject, body, sender_email, sender_password, recipient_email):
     try:
@@ -53,8 +65,20 @@ def check_and_send_reminder(todo_list, sender_email, sender_password, recipient_
         body = "The following tasks are overdue:\n\n"
         for task in overdue_tasks:
             body += f"- {task['task']} (Due: {task['due_date'].strftime('%Y-%m-%d %H:%M')})\n"
-        
+
         send_email(subject, body, sender_email, sender_password, recipient_email)
+
+def initialize_todo_list():
+    last_run_date = load_last_run_date()
+    current_date = datetime.now().strftime('%Y-%m-%d')
+
+    if last_run_date is None or last_run_date != current_date:
+        print("Initializing todo list...")
+        save_last_run_date(current_date)
+        return []
+    else:
+        return load_todo_list()
+
 
 
 def display_menu():
@@ -152,7 +176,7 @@ def export_task_list(todo_list):
 
 def main():
     sender_email, sender_password, recipient_email = get_email_credentials()
-    todo_list = load_todo_list()
+    todo_list = initialize_todo_list()
 
     while True:
         display_menu()
