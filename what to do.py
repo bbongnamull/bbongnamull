@@ -1,12 +1,17 @@
 import os
 import json
-from datetime import datetime
-import matplotlib.pyplot as plt
-
-
-
+from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
 
 TODO_FILE = "todo_list.json"
+
+def get_email_credentials():
+    email_address = input("Enter your email address: ")
+    email_password = input("Enter your email password: ")
+    recipient_email = input("Enter the recipient's email address: ")
+
+    return email_address, email_password, recipient_email
 
 def save_todo_list(todo_list):
     with open(TODO_FILE, 'w') as file:
@@ -19,94 +24,139 @@ def load_todo_list():
     else:
         return []
 
+def send_email(subject, body, sender_email, sender_password, recipient_email):
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = recipient_email
+
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        print("Email sent successfully!")
+
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+    finally:
+        server.quit()
+
+def check_and_send_reminder(todo_list, sender_email, sender_password, recipient_email):
+    current_time = datetime.now()
+    overdue_tasks = [todo for todo in todo_list if todo["due_date"] and todo["due_date"] < current_time and not todo["completed"]]
+
+    if overdue_tasks:
+        subject = "Overdue Tasks Reminder"
+        body = "The following tasks are overdue:\n\n"
+        for task in overdue_tasks:
+            body += f"- {task['task']} (Due: {task['due_date'].strftime('%Y-%m-%d %H:%M')})\n"
+        
+        send_email(subject, body, sender_email, sender_password, recipient_email)
+
+
 def display_menu():
-    print("1. 할일 추가")
-    print("2. 할일 목록 표시")
-    print("3. 할일 완료 체크")
-    print("4. 할일 삭제")
-    print("5. 날짜별 할일 달성 현황 그래프 표시")
-    print("6. 종료")
+    print("1. Add Task")
+    print("2. Display Task List")
+    print("3. Mark Task as Completed")
+    print("4. Delete Task")
+    print("5. View Completed Tasks")
+    print("6. View Overdue Tasks")
+    print("7. Export Task List")
+    print("8. Exit")
 
 def add_todo(todo_list):
-    num_tasks = int(input("추가할 할일의 수를 입력하세요: "))
+    task = input("Enter the task: ")
+    due_date_str = input("Enter due date and time (YYYY-MM-DD HH:MM): ")
     
-    for _ in range(num_tasks):
-        todo = input("추가할 할일을 입력하세요: ")
-        if todo.strip():
-            todo_list.append({"task": todo, "completed": False})
-        else:
-            print("할일을 입력하세요.")
+    try:
+        due_date = datetime.strptime(due_date_str, "%Y-%m-%d %H:%M")
+    except ValueError:
+        print("Invalid date format. Task added without due date.")
+        due_date = None
+    
+    priority = input("Enter priority (High/Medium/Low): ").lower()
+    
+    todo_list.append({"task": task, "completed": False, "due_date": due_date, "priority": priority})
+    print("Task added successfully.")
 
-    print(f"{num_tasks}개의 할일이 추가되었습니다.")
-
-
-def display_todo_list(todo_list):
-    if not todo_list:
-        print("할일이 없습니다.")
+def display_todo_list(todo_list, show_completed=False):
+    filtered_list = [todo for todo in todo_list if todo["completed"] == show_completed]
+    
+    if not filtered_list:
+        print("No tasks.")
     else:
-        for i, todo in enumerate(todo_list, 1):
-            status = "완료" if todo["completed"] else "미완료"
-            print(f"{i}. {todo['task']} ({status})")
+        for i, todo in enumerate(filtered_list, 1):
+            status = "Completed" if todo["completed"] else "Not Completed"
+            due_date = todo["due_date"].strftime("%Y-%m-%d %H:%M") if todo["due_date"] else "No Due Date"
+            priority = todo["priority"].capitalize() if todo["priority"] in ["high", "medium", "low"] else "Not Set"
+            
+            print(f"{i}. {todo['task']} ({status}, Due: {due_date}, Priority: {priority})")
 
 def mark_completed(todo_list):
     display_todo_list(todo_list)
-    num_completed = int(input("완료할 할일의 수를 입력하세요: "))
-
-    for _ in range(num_completed):
-        choice = int(input("완료한 할일의 번호를 입력하세요: ")) - 1
-
-        if 0 <= choice < len(todo_list):
-            todo_list[choice]["completed"] = True
-            todo_list[choice]["completion_date"] = datetime.now().strftime("%Y-%m-%d")
-            print("할일이 완료로 표시되었습니다.")
-        else:
-            print("잘못된 번호를 입력하셨습니다.")
-def delete_todo(todo_list):
-    display_todo_list(todo_list)
-    choice = int(input("삭제할 할일의 번호를 입력하세요: ")) - 1
-
-    if 0 <= choice < len(todo_list):
-        del todo_list[choice]
-        print("할일이 삭제되었습니다.")
-    else:
-        print("잘못된 번호를 입력하셨습니다.")
-def display_datewise_graph(todo_list):
-    date_completion_dict = {}
-
-    for todo in todo_list:
-        completion_date = todo.get("completion_date")
-        if completion_date:
-            completion_date_str = datetime.strptime(completion_date, "%Y-%m-%d").strftime("%Y-%m-%d")
-            date_completion_dict[completion_date_str] = date_completion_dict.get(completion_date_str, 0) + 1
-
-    dates = list(date_completion_dict.keys())
-    completions = list(date_completion_dict.values())
-
-    plt.bar(dates, completions, color='green')
-    plt.xlabel('날짜')
-    plt.ylabel('할일 완료 수')
-    plt.title('날짜별 할일 달성 현황')
-    plt.xticks(rotation=45)
-    plt.show()
-
-def mark_completed(todo_list):
-    display_todo_list(todo_list)
-    choice = int(input("완료한 할일의 번호를 입력하세요: ")) - 1
+    choice = int(input("Enter the number of the completed task: ")) - 1
 
     if 0 <= choice < len(todo_list):
         todo_list[choice]["completed"] = True
-        todo_list[choice]["completion_date"] = datetime.now().strftime("%Y-%m-%d")
-        print("할일이 완료로 표시되었습니다.")
+        print("Task marked as completed.")
     else:
-        print("잘못된 번호를 입력하셨습니다.")
+        print("Invalid task number.")
 
+def delete_todo(todo_list):
+    display_todo_list(todo_list)
+    choice = int(input("Enter the number of the task to delete: ")) - 1
+
+    if 0 <= choice < len(todo_list):
+        del todo_list[choice]
+        print("Task deleted.")
+    else:
+        print("Invalid task number.")
+
+def view_completed_tasks(todo_list):
+    display_todo_list(todo_list, show_completed=True)
+
+def view_overdue_tasks(todo_list):
+    current_time = datetime.now()
+    overdue_tasks = [todo for todo in todo_list if todo["due_date"] and todo["due_date"] < current_time and not todo["completed"]]
+    
+    if not overdue_tasks:
+        print("No overdue tasks.")
+    else:
+        for i, todo in enumerate(overdue_tasks, 1):
+            due_date = todo["due_date"].strftime("%Y-%m-%d %H:%M") if todo["due_date"] else "No Due Date"
+            print(f"{i}. {todo['task']} (Due: {due_date})")
+
+def export_task_list(todo_list):
+    export_format = input("Enter export format (JSON/CSV): ").lower()
+    
+    if export_format == "json":
+        export_file = input("Enter export file name (e.g., export.json): ")
+        with open(export_file, 'w') as file:
+            json.dump(todo_list, file)
+        print(f"Task list exported to {export_file}.")
+    elif export_format == "csv":
+        export_file = input("Enter export file name (e.g., export.csv): ")
+        with open(export_file, 'w') as file:
+            file.write("Task,Status,Due Date,Priority\n")
+            for todo in todo_list:
+                status = "Completed" if todo["completed"] else "Not Completed"
+                due_date = todo["due_date"].strftime("%Y-%m-%d %H:%M") if todo["due_date"] else "No Due Date"
+                priority = todo["priority"].capitalize() if todo["priority"] in ["high", "medium", "low"] else "Not Set"
+                file.write(f"{todo['task']},{status},{due_date},{priority}\n")
+        print(f"Task list exported to {export_file}.")
+    else:
+        print("Invalid export format.")
 
 def main():
+    sender_email, sender_password, recipient_email = get_email_credentials()
     todo_list = load_todo_list()
 
     while True:
         display_menu()
-        choice = input("원하는 작업의 번호를 입력하세요: ")
+        choice = input("Enter the number corresponding to your choice: ")
 
         if choice == '1':
             add_todo(todo_list)
@@ -117,13 +167,18 @@ def main():
         elif choice == '4':
             delete_todo(todo_list)
         elif choice == '5':
-            display_datewise_graph(todo_list)
+            view_completed_tasks(todo_list)
         elif choice == '6':
+            view_overdue_tasks(todo_list)
+        elif choice == '7':
+            export_task_list(todo_list)
+        elif choice == '8':
+            check_and_send_reminder(todo_list, sender_email, sender_password, recipient_email)
             save_todo_list(todo_list)
-            print("프로그램을 종료합니다.")
+            print("Exiting the program.")
             break
         else:
-            print("잘못된 입력입니다. 다시 시도하세요.")
+            print("Invalid input. Please try again.")
 
 if __name__ == "__main__":
     main()
